@@ -24,11 +24,19 @@ with sqlite3.connect('finance_tracker_database.db') as Connection:
         (False, '2024-12-31')
     ]
 
-    #Adding the mock data to revenues_expenses table
-    cursor.executemany(
-        'INSERT INTO revenues_expenses (revenue, date) VALUES (?, ?);', mock_data
+    #Adding the mock data to revenues_expenses table ONLY IF the table is empty
+
+    cursor.execute(
+        'SELECT COUNT(*) FROM revenues_expenses;'
     )
 
-    Connection.commit()
+    row_count = cursor.fetchone()[0]
+    
+    if row_count == 0:
+        cursor.executemany(
+            'INSERT INTO revenues_expenses (revenue, date) VALUES (?, ?);', mock_data
+        )
+
+        Connection.commit()
 
     
