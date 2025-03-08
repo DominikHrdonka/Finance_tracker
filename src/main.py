@@ -1,4 +1,5 @@
 import sys
+import keyboard
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QRadioButton, QPushButton, QLineEdit, QLabel
 
 class MyApp(QWidget):
@@ -18,6 +19,7 @@ class MyApp(QWidget):
         # Textové pole
         self.textbox = QLineEdit(self)
         layout.addWidget(self.textbox)
+        keyboard.add_hotkey('enter', self.onSubmit)
         
         # Tlačítko
         self.button = QPushButton("Enter", self)
