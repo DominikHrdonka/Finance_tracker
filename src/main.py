@@ -10,8 +10,8 @@ class MyApp(QWidget):
         layout = QVBoxLayout()
         
         # Radio Buttony
-        self.radio1 = QRadioButton("Možnost 1")
-        self.radio2 = QRadioButton("Možnost 2")
+        self.radio1 = QRadioButton("Přijem")
+        self.radio2 = QRadioButton("Výdaj")
         layout.addWidget(self.radio1)
         layout.addWidget(self.radio2)
         
@@ -20,7 +20,7 @@ class MyApp(QWidget):
         layout.addWidget(self.textbox)
         
         # Tlačítko
-        self.button = QPushButton("Submit", self)
+        self.button = QPushButton("Enter", self)
         self.button.clicked.connect(self.onSubmit)
         layout.addWidget(self.button)
         
@@ -29,18 +29,19 @@ class MyApp(QWidget):
         layout.addWidget(self.label)
         
         self.setLayout(layout)
-        self.setWindowTitle("RadioButton a Submit")
+        self.setWindowTitle("Finance Tracker")
         self.show()
 
     def onSubmit(self):
         selected_option = ""
         if self.radio1.isChecked():
-            selected_option = "Možnost 1"
-        elif self.radio2.isChecked():
-            selected_option = "Možnost 2"
-        
-        text = self.textbox.text()
-        self.label.setText(f"Vybráno: {selected_option}, Zapsaný text: {text}")
+            selected_option = "Příjem"
+            text = self.textbox.text()
+            self.label.setText(f"Na.vaš učet bylo připsáno: {text}\nNa vašem učtu je zůstatek: ")
+        if self.radio2.isChecked():
+            selected_option = "Výdaj"
+            text = self.textbox.text()
+            self.label.setText(f"Z vašeho učtu bylo vydáno: {text}\nNa vašem učtu je zůstatek:")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
