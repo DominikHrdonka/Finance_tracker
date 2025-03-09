@@ -1,8 +1,13 @@
+import re
 import sqlite3
 import matplotlib.pyplot as plt
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QRadioButton, QPushButton, QLineEdit, QLabel, QWidget
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from PyQt5.QtGui import QFont
+from PIL import ImageGrab
+from PIL import Image
+import pytesseract
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 
 class MyApp(QWidget):
@@ -52,6 +57,13 @@ class MyApp(QWidget):
         self.button.setFixedHeight(40)
         self.button.clicked.connect(self.onSubmit)
         layout.addWidget(self.button)
+
+        # ✅ Nové tlačítko pro screenshot
+        self.screenshot_button = QPushButton("Načíst Screenshot", self)
+        self.screenshot_button.setFont(font)
+        self.screenshot_button.setFixedHeight(40)
+        self.screenshot_button.clicked.connect(self.readClipboardImage)
+        layout.addWidget(self.screenshot_button)
 
         # ✅ Tlačítko pro zobrazení/skrytí grafu
         self.graph_button = QPushButton("Zobrazit graf", self)
@@ -155,6 +167,51 @@ class MyApp(QWidget):
 
         self.updateGraph()  # ✅ Aktualizuje graf
 
+
+
+
+
+    def readClipboardImage(self):
+        """ ✅ Načte text z obrázku ve schránce pomocí OCR """
+        image = ImageGrab.grabclipboard()
+
+        if image is None:
+            self.label.setText("❌ Žádný obrázek ve schránce!")
+            return
+
+        if not isinstance(image, Image.Image):  # ✅ Ověříme, zda je to obrázek
+            self.label.setText("❌ Obsah schránky není obrázek!")
+            return
+
+        image = image.convert("RGB")  # ✅ Převod na správný formát
+        text = pytesseract.image_to_string(image)  # ✅ Extrakce textu
+
+        # ✅ Najdeme všechny částky (např. 1200, -1500, 450.50)
+        amounts = re.findall(r"-?\d+[\.,]?\d*", text)
+
+        # ✅ Filtrujeme platná čísla a převedeme je na `float`
+        transactions = [float(amount.replace(",", ".")) for amount in amounts if
+                        amount.replace(",", ".").replace(".", "").isdigit()]
+
+        if not transactions:
+            self.label.setText("❌ Na obrázku nebyly nalezeny žádné transakce.")
+            return
+
+        # ✅ Roztřídíme příjmy a výdaje
+        for amount in transactions:
+            transaction_type = "Příjem" if amount > 0 else "Výdaj"
+
+            # ✅ Uložíme do databáze
+            self.cursor.execute("INSERT INTO transactions (type, amount) VALUES (?, ?)", (transaction_type, amount))
+            self.conn.commit()
+
+            # ✅ Aktualizujeme zůstatek
+            self.balance += amount
+
+        # ✅ Aktualizujeme GUI
+        self.label.setText(
+            f"📸 Ze screenshotu načteno {len(transactions)} transakcí\n💰 Na vašem účtu je zůstatek: {self.balance} Kč")
+        self.updateGraph()  # ✅ Aktualizujeme graf
 
 if __name__ == "__main__":
     app = QApplication([])
