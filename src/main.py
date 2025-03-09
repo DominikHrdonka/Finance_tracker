@@ -1,11 +1,30 @@
 import sys
 import keyboard
+import sqlite3
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QRadioButton, QPushButton, QLineEdit, QLabel
 
 class MyApp(QWidget):
     def __init__(self):
         super().__init__()
+        self.balance = 0
+        self.initDB()
         self.initUI()
+
+    def initDB(self):
+        self.conn = sqlite3.connect("finance_tracker.db")
+        self.cursor = self.conn.cursor()
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT,
+                amount INTEGER
+            )
+        ''')
+        self.conn.commit()
+
+        # Načti celkový zůstatek
+        self.cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM transactions")
+        self.balance = self.cursor.fetchone()[0]
 
     def initUI(self):
         layout = QVBoxLayout()
@@ -28,6 +47,7 @@ class MyApp(QWidget):
         
         # Štítek na výstup
         self.label = QLabel("Výstup se zobrazí zde.")
+        self.label.setText(f"Na vašem účtu je zůstatek: {self.balance} Kč")
         layout.addWidget(self.label)
         
         self.setLayout(layout)
@@ -36,14 +56,30 @@ class MyApp(QWidget):
 
     def onSubmit(self):
         selected_option = ""
+
+        try:
+            amount = int(self.textbox.text())
+        except ValueError:
+            self.label.setText(f"Chyba: Zadej prosím platnou částku!\nNa vašem účtu je zůstatek: {self.balance} Kč")
+            return
+
+
         if self.radio1.isChecked():
             selected_option = "Příjem"
-            text = self.textbox.text()
-            self.label.setText(f"Na.vaš učet bylo připsáno: {text}\nNa vašem učtu je zůstatek: ")
-        if self.radio2.isChecked():
+            self.balance += amount
+            self.label.setText(f"Na váš účet bylo připsáno: {amount} Kč\nNa vašem účtu je zůstatek: {self.balance} Kč")
+        elif self.radio2.isChecked():
             selected_option = "Výdaj"
-            text = self.textbox.text()
-            self.label.setText(f"Z vašeho učtu bylo vydáno: {text}\nNa vašem učtu je zůstatek:")
+            self.balance -= amount
+            self.label.setText(f"Z vašeho účtu bylo vydáno: {amount} Kč\nNa vašem účtu je zůstatek: {self.balance} Kč")
+
+        self.label.setText(f"{selected_option}: {amount} Kč\nNa vašem účtu je zůstatek: {self.balance} Kč")
+        self.textbox.clear()
+
+        # Ulož do databáze
+        self.cursor.execute("INSERT INTO transactions (type, amount) VALUES (?, ?)",
+                            (selected_option, amount if selected_option == "Příjem" else -amount))
+        self.conn.commit()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
