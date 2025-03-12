@@ -1,2 +1,4 @@
-PyQt5-stubs==5.15.6.0
-keyboard
+pyautogui
+PyQt5
+matplotlib
+Pillow
