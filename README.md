@@ -27,7 +27,11 @@ pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tessera
 # Průběžné body tvorby aplikace:
 - [x] vytvořit login
 - [ ] propojit login s main.py
-- [ ] vytvořit graf příjmů a výdajů
+- [ ] přidat k logingu solení
 - [ ] rozdělit main.py na vícero souborů
 - [x] sepsat README.md
 - [x] sepsat requirements.txt
+- [ ] udělat grafický návrh, jak má aplikace vypadat
+- [ ] nakódovat přidávání transakcí - json: leden, příjem/výdaj, částka, za co
+- [ ] přidat editování transakcí
+- [ ] vytvořit (návrh) grafu příjmů a výdajů
