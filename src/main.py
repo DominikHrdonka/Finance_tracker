@@ -14,6 +14,9 @@ from login import LoginApp
 from screenshot import take_screenshot
 from graph import showGraph
 from screenshot import add_amounts_to_db
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QLabel, QListWidget
+from PyQt5.QtCore import Qt
+import sys
 
 
 class FinanceTracker(QWidget):
@@ -22,7 +25,7 @@ class FinanceTracker(QWidget):
         self.balance = 0
         self.graph_visible = False
         self.initDB()
-        self.initUI()
+        self.initUI()  # ✅ Tlačítko se vytvoří tady
         self.updateGraph()
         self.graph_button.setText("Skrýt graf")
 
@@ -41,52 +44,40 @@ class FinanceTracker(QWidget):
         self.balance = self.cursor.fetchone()[0]
 
     def initUI(self):
-        self.resize(900, 700)
-        layout = QVBoxLayout()
-
-        self.radio1 = QRadioButton("Příjem")
-        self.radio2 = QRadioButton("Výdaj")
-        layout.addWidget(self.radio1)
-        layout.addWidget(self.radio2)
-
-        self.textbox = QLineEdit(self)
-        layout.addWidget(self.textbox)
-
-        self.button = QPushButton("Enter", self)
-        self.button.clicked.connect(self.onSubmit)
-        layout.addWidget(self.button)
-
-        self.screenshot_button = QPushButton("Vybrat oblast a udělat screenshot", self)
-        self.screenshot_button.clicked.connect(self.take_screenshot)
-        layout.addWidget(self.screenshot_button)
-
-        self.graph_button = QPushButton("Skrýt graf")  # ✅ Nastavíme správný text ihned
-        self.graph_button.clicked.connect(self.toggleGraph)
-        layout.addWidget(self.graph_button)
-
-        self.clear_button = QPushButton("Vymazat všechny transakce")
-        self.clear_button.clicked.connect(self.clearTransactions)
-        layout.addWidget(self.clear_button)
-
-        self.graph_widget = QWidget(self)
-        self.graph_layout = QVBoxLayout(self.graph_widget)
-        layout.addWidget(self.graph_widget)
-
-        self.label = QLabel(f"Na vašem účtu je zůstatek: {self.balance} Kč")
-        layout.addWidget(self.label)
-
-        self.screenshot_label = QLabel(self)
-        self.screenshot_label.setFixedSize(500, 300)
-        layout.addWidget(self.screenshot_label)
-
-        self.setLayout(layout)
         self.setWindowTitle("Finance Tracker")
+        self.resize(1000, 700)
 
-        # 🟢 **Zobrazíme graf už při spuštění**
-        self.graph_visible = True
-        self.updateGraph()
+        # 🔲 Hlavní layout bude grid
+        layout = QGridLayout()
 
-        self.show()
+        # 📌 MENU PANEL (levý horní)
+        self.menu_layout = QVBoxLayout()
+        self.screenshot_button = QPushButton("📸 Udělat screenshot")
+        self.clear_button = QPushButton("🗑️ Vymazat transakce")
+        self.graph_button = QPushButton("Skrýt graf")  # ✅ Tlačítko pro zobrazení/skrytí grafu
+        self.menu_layout.addWidget(self.screenshot_button)
+        self.menu_layout.addWidget(self.clear_button)
+        self.menu_layout.addWidget(self.graph_button)  # ✅ Přidáme tlačítko na přepínání grafu
+        layout.addLayout(self.menu_layout, 0, 0)
+
+        # 📜 VÝPIS TRANSAKCÍ (pravý horní)
+        self.transaction_list = QListWidget()
+        self.transaction_list.addItem("🔄 Historie transakcí")  # Placeholder
+        layout.addWidget(self.transaction_list, 0, 1)
+
+        # 📸 SCREENSHOT PANEL (levý dolní)
+        self.screenshot_label = QLabel("📷 Náhled screenshotu")
+        self.screenshot_label.setStyleSheet("border: 1px solid black; min-height: 200px;")
+        self.screenshot_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.screenshot_label, 1, 0)
+
+        # 📊 GRAF PANEL (pravý dolní)
+        self.graph_widget = QWidget(self)  # ✅ Vytvoříme widget pro graf
+        self.graph_layout = QVBoxLayout(self.graph_widget)  # ✅ Přidáme layout
+        layout.addWidget(self.graph_widget, 1, 1)
+
+        # 🔗 Nastavení hlavního layoutu
+        self.setLayout(layout)
 
     def onSubmit(self):
         try:
