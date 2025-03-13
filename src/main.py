@@ -12,7 +12,8 @@ from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import Qt
 from login import LoginApp
 from screenshot import take_screenshot
-from graph import show_graph
+from graph import showGraph
+from screenshot import add_amounts_to_db
 
 
 class FinanceTracker(QWidget):
@@ -22,6 +23,8 @@ class FinanceTracker(QWidget):
         self.graph_visible = False
         self.initDB()
         self.initUI()
+        self.updateGraph()
+        self.graph_button.setText("Skrýt graf")
 
     def initDB(self):
         self.conn = sqlite3.connect("finance_tracker.db", check_same_thread=False)
@@ -57,18 +60,17 @@ class FinanceTracker(QWidget):
         self.screenshot_button.clicked.connect(self.take_screenshot)
         layout.addWidget(self.screenshot_button)
 
-        self.graph_button = QPushButton("Zobrazit graf", self)
+        self.graph_button = QPushButton("Skrýt graf")  # ✅ Nastavíme správný text ihned
         self.graph_button.clicked.connect(self.toggleGraph)
         layout.addWidget(self.graph_button)
 
-        self.clear_button = QPushButton("Vymazat všechny transakce", self)
+        self.clear_button = QPushButton("Vymazat všechny transakce")
         self.clear_button.clicked.connect(self.clearTransactions)
         layout.addWidget(self.clear_button)
 
         self.graph_widget = QWidget(self)
         self.graph_layout = QVBoxLayout(self.graph_widget)
         layout.addWidget(self.graph_widget)
-        self.graph_widget.setVisible(False)
 
         self.label = QLabel(f"Na vašem účtu je zůstatek: {self.balance} Kč")
         layout.addWidget(self.label)
@@ -79,6 +81,11 @@ class FinanceTracker(QWidget):
 
         self.setLayout(layout)
         self.setWindowTitle("Finance Tracker")
+
+        # 🟢 **Zobrazíme graf už při spuštění**
+        self.graph_visible = True
+        self.updateGraph()
+
         self.show()
 
     def onSubmit(self):
@@ -97,11 +104,32 @@ class FinanceTracker(QWidget):
         self.balance += amount
         self.label.setText(f"Na vašem účtu je zůstatek: {self.balance} Kč")
         self.textbox.clear()
-        self.updateGraph()
+
+        # 🔄 **Aktualizujeme graf pouze pokud byl viditelný**
+        if self.graph_visible:
+            self.updateGraph()
+
+        print("✅ Částka úspěšně přidána!")
 
     def take_screenshot(self):
-        """Spustí screenshotovací funkci"""
-        take_screenshot(self)  # ✅ Použití externí funkce ze screenshot.py
+        """Spustí screenshotovací funkci a aktualizuje graf, pokud je viditelný"""
+        amounts = take_screenshot(self)  # ✅ Pořídíme screenshot a extrahujeme částky
+
+        if amounts:
+            print("📊 Přidáváme částky do databáze...")
+            add_amounts_to_db(self, amounts)  # ✅ Uloží částky do databáze
+
+            # ✅ **Pokud je graf viditelný, nejprve ho odstraníme a pak aktualizujeme**
+            if self.graph_visible:
+                for i in reversed(range(self.graph_layout.count())):
+                    widget = self.graph_layout.itemAt(i).widget()
+                    if widget:
+                        widget.setParent(None)  # ❌ Odstraníme starý graf
+                self.updateGraph()  # ✅ Přidáme nový graf
+
+            print("✅ Screenshot zpracován a data přidána!")
+        else:
+            print("❌ Screenshot neobsahuje žádná data!")
 
     def toggleGraph(self):
         if self.graph_visible:
@@ -113,16 +141,87 @@ class FinanceTracker(QWidget):
             self.graph_button.setText("Skrýt graf")
         self.graph_visible = not self.graph_visible
 
-    def display_graph(self):
-        """Zavolá funkci pro zobrazení grafu"""
-        show_graph(self, self.cursor)
+    def showGraph(self):
+        """ Zavolá funkci `showGraph()` a správně přidá graf do GUI. """
+        print("📊 Generuji graf...")
+
+        # 🗑️ **Smažeme starý graf**
+        while self.graph_layout.count():
+            item = self.graph_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        # 📊 **Získáme nový graf jako `FigureCanvas`**
+        canvas = showGraph(self.cursor)
+
+        if canvas:  # ✅ **Pokud se graf vytvořil, nastavíme jeho velikost**
+            canvas.setMinimumWidth(800)  # 📌 **Zabráníme stlačení grafu**
+            canvas.setMinimumHeight(400)
+            self.graph_layout.addWidget(canvas)
+            print("✅ Graf přidán do GUI!")
+        else:
+            print("⚠️ Graf se nevytvořil, protože nejsou žádná data!")
 
     def clearTransactions(self):
-        self.cursor.execute("DELETE FROM transactions")
-        self.conn.commit()
-        self.balance = 0
-        self.label.setText(f"Na vašem účtu je zůstatek: {self.balance} Kč")
-        self.updateGraph()
+        """ Smaže všechny transakce a resetuje zůstatek. """
+        try:
+            print("🗑️ Mazání všech transakcí z databáze...")
+            self.cursor.execute("DELETE FROM transactions")
+            self.conn.commit()
+
+            # Resetujeme zůstatek
+            self.balance = 0
+
+            # 🔄 Aktualizujeme GUI
+            self.label.setText(f"💰 Zůstatek: {self.balance} Kč (transakce vymazány)")
+            self.repaint()  # ✅ Qt GUI update
+
+            # 🟢 **Aktualizujeme graf pouze pokud byl viditelný**
+            if self.graph_visible:
+                self.updateGraph()
+
+            # ✅ **Tlačítko zůstane ve správném stavu podle viditelnosti grafu**
+            self.graph_button.setText("Skrýt graf" if self.graph_visible else "Zobrazit graf")
+
+            print("✅ Všechny transakce úspěšně vymazány!")
+
+        except Exception as e:
+            print("❌ Chyba při mazání transakcí!")
+            import traceback
+            traceback.print_exc()
+            self.label.setText(f"❌ Chyba při mazání: {str(e)}")
+
+    def updateGraph(self):
+        """ Aktualizuje graf podle aktuálních transakcí. """
+        print("🔄 Aktualizuji graf...")
+
+        # Nejprve odstraníme starý graf, pokud existuje
+        while self.graph_layout.count():
+            item = self.graph_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        # Získáme nový graf jako `FigureCanvas`
+        canvas = showGraph(self.cursor)
+
+        if canvas:
+            canvas.setMinimumWidth(800)  # 📏 Zabráníme stlačení grafu
+            canvas.setMinimumHeight(400)
+            self.graph_layout.addWidget(canvas)
+            self.graph_widget.setVisible(True)  # ✅ Graf zůstane viditelný i bez dat
+            print("✅ Graf přidán do GUI!")
+        else:
+            print("⚠️ Žádná data k zobrazení! Nahrazujeme zprávou...")
+
+            # 📝 **Vytvoříme QLabel místo grafu**
+            no_data_label = QLabel("📊 Žádná data k zobrazení", self)
+            no_data_label.setAlignment(Qt.AlignCenter)
+            no_data_label.setStyleSheet("font-size: 18px; font-weight: bold; color: gray;")
+
+            self.graph_layout.addWidget(no_data_label)
+            self.graph_widget.setVisible(True)  # ✅ Necháme grafové pole viditelné
 
 
 if __name__ == "__main__":
