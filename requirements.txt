@@ -2,3 +2,4 @@ pyautogui
 PyQt5
 matplotlib
 Pillow
+pytesseract
