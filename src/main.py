@@ -8,14 +8,11 @@ from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QRadioButton, QP
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
 from PIL import ImageGrab, ImageQt
-from PyQt5.QtGui import QPixmap
-from PIL import ImageGrab
-from PyQt5.QtGui import QImage, QPixmap
-from PIL import ImageGrab, Image  # ✅ Správný import!
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import Qt
-
-
+from login import LoginApp
+from screenshot import take_screenshot
+from graph import show_graph
 
 
 class FinanceTracker(QWidget):
@@ -103,70 +100,8 @@ class FinanceTracker(QWidget):
         self.updateGraph()
 
     def take_screenshot(self):
-        """ 📸 Screenshotování bez chyb! Používá čistý PyQt5, žádný ImageQt. """
-
-        def screenshot_thread():
-            print("🟢 Screenshotovací vlákno spuštěno...")
-            self.label.setText("🖱️ Klikni a táhni myší pro výběr oblasti...")
-
-            root = tk.Tk()
-            root.attributes("-fullscreen", True)
-            root.attributes("-alpha", 0.3)
-            root.configure(bg="black")
-
-            coords = []
-
-            def on_click(event):
-                print(f"🔵 Kliknutí na: {event.x_root}, {event.y_root}")
-                coords.clear()
-                coords.append((event.x_root, event.y_root))
-
-            def on_release(event):
-                print(f"🟠 Uvolnění na: {event.x_root}, {event.y_root}")
-                coords.append((event.x_root, event.y_root))
-                root.quit()
-
-            canvas = tk.Canvas(root, cursor="cross", bg="black")
-            canvas.pack(fill=tk.BOTH, expand=True)
-            canvas.bind("<ButtonPress-1>", on_click)
-            canvas.bind("<ButtonRelease-1>", on_release)
-
-            root.mainloop()
-            root.destroy()
-
-            if len(coords) < 2:
-                self.label.setText("❌ Screenshot byl zrušen.")
-                print("🔴 Screenshot zrušen.")
-                return
-
-            x1, y1 = coords[0]
-            x2, y2 = coords[1]
-
-            if x1 == x2 or y1 == y2:
-                self.label.setText("❌ Vybraná oblast je příliš malá!")
-                print("🔴 Vybraná oblast je příliš malá.")
-                return
-
-            print(f"🟢 Pořizuji screenshot oblasti: ({x1}, {y1}) → ({x2}, {y2})")
-
-            # 📸 Pořídíme screenshot v zadané oblasti
-            screenshot = ImageGrab.grab(bbox=(x1, y1, x2, y2))
-            screenshot = screenshot.convert("RGB")  # ✅ Nutné pro PyQt5
-
-            # 🖼️ Převedeme screenshot do formátu pro PyQt5 **bez ImageQt!**
-            data = screenshot.tobytes("raw", "RGB")
-            qimage = QImage(data, screenshot.width, screenshot.height, QImage.Format_RGB888)
-            pixmap = QPixmap.fromImage(qimage)
-
-            # ✅ Aktualizujeme QLabel ve hlavní aplikaci **v hlavním Qt vlákně**
-            self.screenshot_label.setPixmap(pixmap)
-            self.screenshot_label.setPixmap(pixmap.scaled(self.screenshot_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            self.label.setText("✅ Screenshot byl pořízen!")
-
-            print("🟢 Screenshot dokončen!")
-
-        # 🚀 Spustíme screenshotovací funkci ve **vlastním vlákně**
-        threading.Thread(target=screenshot_thread, daemon=True).start()
+        """Spustí screenshotovací funkci"""
+        take_screenshot(self)  # ✅ Použití externí funkce ze screenshot.py
 
     def toggleGraph(self):
         if self.graph_visible:
@@ -178,23 +113,9 @@ class FinanceTracker(QWidget):
             self.graph_button.setText("Skrýt graf")
         self.graph_visible = not self.graph_visible
 
-    def showGraph(self):
-        self.cursor.execute("SELECT type, SUM(amount) FROM transactions GROUP BY type")
-        data = self.cursor.fetchall()
-        if not data:
-            self.label.setText("Žádné transakce k zobrazení.")
-            return
-
-        labels = [row[0] for row in data]
-        values = [row[1] for row in data]
-        figure = plt.figure(figsize=(5, 3))
-        ax = figure.add_subplot(111)
-        ax.bar(labels, values, color=['green' if lbl == "Příjem" else 'red' for lbl in labels])
-        ax.set_title("Příjmy vs Výdaje")
-        ax.set_xlabel("Kategorie")
-        ax.set_ylabel("Částka (Kč)")
-        canvas = FigureCanvas(figure)
-        self.graph_layout.addWidget(canvas)
+    def display_graph(self):
+        """Zavolá funkci pro zobrazení grafu"""
+        show_graph(self, self.cursor)
 
     def clearTransactions(self):
         self.cursor.execute("DELETE FROM transactions")
@@ -203,7 +124,15 @@ class FinanceTracker(QWidget):
         self.label.setText(f"Na vašem účtu je zůstatek: {self.balance} Kč")
         self.updateGraph()
 
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    ex = FinanceTracker()
-    sys.exit(app.exec_())
+
+    login_window = LoginApp()
+    login_window.show()
+    app.exec_()  # Počkáme na zavření přihlašovacího okna
+
+    if login_window.is_authenticated:
+        main_window = FinanceTracker()
+        main_window.show()
+        sys.exit(app.exec_())
