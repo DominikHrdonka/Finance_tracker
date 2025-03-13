@@ -105,31 +105,21 @@ class FinanceTracker(QWidget):
         self.label.setText(f"Na vašem účtu je zůstatek: {self.balance} Kč")
         self.textbox.clear()
 
-        # 🔄 **Aktualizujeme graf pouze pokud byl viditelný**
         if self.graph_visible:
-            self.updateGraph()
-
-        print("✅ Částka úspěšně přidána!")
+            print("🔄 Aktualizujeme graf po ručním zadání částky...")
+            self.update_graph()
 
     def take_screenshot(self):
         """Spustí screenshotovací funkci a aktualizuje graf, pokud je viditelný"""
-        amounts = take_screenshot(self)  # ✅ Pořídíme screenshot a extrahujeme částky
+        amounts = take_screenshot(self)  # Pořídíme screenshot a extrahujeme částky
 
         if amounts:
             print("📊 Přidáváme částky do databáze...")
-            add_amounts_to_db(self, amounts)  # ✅ Uloží částky do databáze
+            add_amounts_to_db(self, amounts)  # Uloží částky do databáze
 
-            # ✅ **Pokud je graf viditelný, nejprve ho odstraníme a pak aktualizujeme**
             if self.graph_visible:
-                for i in reversed(range(self.graph_layout.count())):
-                    widget = self.graph_layout.itemAt(i).widget()
-                    if widget:
-                        widget.setParent(None)  # ❌ Odstraníme starý graf
-                self.updateGraph()  # ✅ Přidáme nový graf
-
-            print("✅ Screenshot zpracován a data přidána!")
-        else:
-            print("❌ Screenshot neobsahuje žádná data!")
+                print("🔄 Aktualizujeme graf po screenshotu...")
+                self.update_graph()
 
     def toggleGraph(self):
         if self.graph_visible:
@@ -191,6 +181,27 @@ class FinanceTracker(QWidget):
             import traceback
             traceback.print_exc()
             self.label.setText(f"❌ Chyba při mazání: {str(e)}")
+
+    def update_graph(self):
+        """ Aktualizuje graf a zobrazí jej v GUI """
+        print("🔄 Aktualizuji graf...")
+
+        # ✅ Smazání starého grafu
+        while self.graph_layout.count():
+            item = self.graph_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        QApplication.processEvents()  # 🚀 **Přidá tento řádek, aby Qt GUI zpracovalo změny!**
+
+        # ✅ Vytvoření nového grafu
+        canvas = showGraph(self.cursor)
+        if canvas:
+            self.graph_layout.addWidget(canvas)
+            print("✅ Graf úspěšně aktualizován!")
+        else:
+            print("⚠️ Žádná data k zobrazení! Nahrazujeme zprávou...")
 
     def updateGraph(self):
         """ Aktualizuje graf podle aktuálních transakcí. """

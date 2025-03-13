@@ -71,7 +71,7 @@ def take_screenshot(widget):
 
 
 def add_amounts_to_db(widget, amounts):
-    """Uloží rozpoznané částky do databáze jako Příjem/Výdaj."""
+    """Uloží rozpoznané částky do databáze jako Příjem/Výdaj a aktualizuje graf."""
     try:
         print("📊 Kontrolujeme databázové spojení...")
         if widget.conn is None or widget.cursor is None:
@@ -84,17 +84,28 @@ def add_amounts_to_db(widget, amounts):
 
         for amount in amounts:
             if transaction_type == "Výdaj":
-                amount = -amount  # Výdaje ukládáme záporné
+                amount = -abs(amount)  # Výdaje ukládáme záporné
 
             print(f"📊 Vkládáme do DB: {transaction_type}, {amount} Kč")
             widget.cursor.execute("INSERT INTO transactions (type, amount) VALUES (?, ?)", (transaction_type, amount))
 
         widget.conn.commit()  # Uložíme změny do databáze
-        widget.balance += sum(amounts)
+        # 🔄 Načteme aktuální zůstatek z databáze (správný způsob výpočtu)
+        widget.cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM transactions")
+        widget.balance = widget.cursor.fetchone()[0]  # ✅ Získáme správný zůstatek z DB
+
+        # 🔄 Aktualizujeme GUI bezpečně
+        print(f"💰 Nový správný zůstatek: {widget.balance} Kč")
+        widget.label.setText(f"💰 Zůstatek: {widget.balance} Kč (přidáno {transaction_type})")
 
         # 🔄 Aktualizujeme GUI bezpečně
         print(f"💰 Nový zůstatek: {widget.balance} Kč")
         widget.label.setText(f"💰 Zůstatek: {widget.balance} Kč (přidáno {transaction_type})")
+
+        # ✅ Po přidání částek do databáze aktualizujeme graf
+        if widget.graph_visible:
+            print("🔄 Aktualizujeme graf po přidání částky...")
+            widget.update_graph()
 
     except Exception as e:
         print("❌ Chyba při přidávání do databáze!")
