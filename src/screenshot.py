@@ -8,6 +8,11 @@ from PyQt5.QtCore import Qt
 import io
 import os
 import re
+import numpy as np
+import easyocr
+
+
+reader = easyocr.Reader(['cs', 'en'])
 
 # ✅ Nastavení cesty k Tesseract OCR podle OS
 if sys.platform == "win32":
@@ -80,10 +85,23 @@ def take_screenshot(widget):
         amounts = extract_amounts_from_image(screenshot)
 
         if not amounts:
-            widget.label.setText("❌ Nebyly rozpoznány žádné částky.")
+            widget.label.setText("No amounts recognized.")
             return
 
-        add_amounts_to_db(widget, amounts)
+        # Připravit text pro potvrzení
+        amounts_str = ", ".join(f"{a:.2f} Kč" for a in amounts)
+        confirm_text = f"The following amounts were recognized:\n{amounts_str}\n\nDo you want to add them to the database?"
+
+        # Zobrazit potvrzovací dialog
+        from PyQt5.QtWidgets import QMessageBox
+        reply = QMessageBox.question(widget, "Confirm OCR Results", confirm_text,
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            add_amounts_to_db(widget, amounts)
+            widget.label.setText(f"{len(amounts)} amount(s) added.")
+        else:
+            widget.label.setText("Operation cancelled.")
 
     except Exception as e:
         print("❌ Chyba během screenshotování!")
@@ -93,28 +111,46 @@ def take_screenshot(widget):
 
 
 def extract_amounts_from_image(image):
-    """ Použije OCR k extrakci částek ze screenshotu. """
-    print("🔍 Spouštíme OCR na rozpoznání textu...")
+    print("Running OCR...")
 
-    # Zvýšíme kontrast obrázku pro lepší OCR
-    image = image.convert("L")
+    # 🔧 Úprava obrázku před OCR
+    image = image.convert("L")  # převod na odstíny šedi
     enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(2.0)
+    image = enhancer.enhance(3.0)  # zvýší kontrast
 
-    # Rozpoznání textu (čeština + angličtina)
-    text = pytesseract.image_to_string(image, lang="ces+eng")
-    print(f"📜 Rozpoznaný text:\n{text}")
+    from PIL import ImageOps
+    image = ImageOps.autocontrast(image)  # ještě víc vyrovná jas/kontrast
 
-    # Extrakce čísel (včetně oddělovačů tisíců)
-    amounts = re.findall(r"\d{1,3}(?:[\.,]\d{3})*|\d+", text)
+    # 🔄 Převedeme na NumPy pole pro EasyOCR
+    image_np = np.array(image)
+
+    # 🧠 Spustíme OCR
+    results = reader.readtext(image_np)
+
+    for box, text, confidence in results:
+        print(f"[{confidence:.2f}] {text} @ {box}")
+
+    text = "\n".join([r[1] for r in results])
+    print(f"OCR result (raw):\n{text}")
+
+    # Czech-style numbers: 1.000, 1 000, 1 000,50, 1500, 1,50
+    amounts = re.findall(r"\d{1,3}(?:[ .]\d{3})*(?:,\d{1,2})?|\d{3,}(?:,\d{1,2})?", text)
+    print(f"Matched raw amounts: {amounts}")
 
     corrected_amounts = []
     for amount in amounts:
-        clean_amount = amount.replace(".", "").replace(",", "")
-        if clean_amount.isdigit():
-            corrected_amounts.append(int(clean_amount))
+        clean = amount.replace(" ", "").replace(".", "")
+        try:
+            value_str = clean.replace(",", ".")
+            # Allow only numbers with max 2 decimal places
+            if '.' in value_str and len(value_str.split('.')[-1]) > 2:
+                continue
+            value = float(value_str)
+            corrected_amounts.append(round(value, 2))  # zachováme haléře
+        except ValueError:
+            continue
 
-    print(f"💰 Opravené částky: {corrected_amounts}")
+    print(f"Final parsed float amounts (max 2 decimal places): {corrected_amounts}")
     return corrected_amounts
 
 
