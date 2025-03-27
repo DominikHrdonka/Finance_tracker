@@ -45,6 +45,7 @@ class FinanceTracker(QWidget):
         layout = QVBoxLayout()
 
         self.radio1 = QRadioButton("Příjem")
+        self.radio1.setChecked(True)
         self.radio2 = QRadioButton("Výdaj")
         layout.addWidget(self.radio1)
         layout.addWidget(self.radio2)

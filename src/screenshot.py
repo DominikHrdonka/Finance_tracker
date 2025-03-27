@@ -113,46 +113,100 @@ def take_screenshot(widget):
 def extract_amounts_from_image(image):
     print("Running OCR...")
 
-    # 🔧 Úprava obrázku před OCR
-    image = image.convert("L")  # převod na odstíny šedi
+    # Úprava obrázku pro lepší čitelnost
+    image = image.convert("L")
     enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(3.0)  # zvýší kontrast
-
+    image = enhancer.enhance(3.0)
     from PIL import ImageOps
-    image = ImageOps.autocontrast(image)  # ještě víc vyrovná jas/kontrast
+    image = ImageOps.autocontrast(image)
+    image = image.resize((image.width * 2, image.height * 2), Image.LANCZOS)
 
-    # 🔄 Převedeme na NumPy pole pro EasyOCR
     image_np = np.array(image)
-
-    # 🧠 Spustíme OCR
     results = reader.readtext(image_np)
 
     for box, text, confidence in results:
         print(f"[{confidence:.2f}] {text} @ {box}")
 
-    text = "\n".join([r[1] for r in results])
-    print(f"OCR result (raw):\n{text}")
+    raw_texts = [text for (_, text, conf) in results if conf > 0.0]
 
-    # Czech-style numbers: 1.000, 1 000, 1 000,50, 1500, 1,50
-    amounts = re.findall(r"\d{1,3}(?:[ .]\d{3})*(?:,\d{1,2})?|\d{3,}(?:,\d{1,2})?", text)
-    print(f"Matched raw amounts: {amounts}")
+    amounts = []
+    for text in raw_texts:
+        parsed = parse_amount_string(text)
+        if parsed is not None:
+            amounts.append(parsed)
+            print(f"✅ Přidáno: {text} → {parsed}")
+        else:
+            print(f"⚠️ Zamítnuto: {text}")
 
-    corrected_amounts = []
-    for amount in amounts:
-        clean = amount.replace(" ", "").replace(".", "")
-        try:
-            value_str = clean.replace(",", ".")
-            # Allow only numbers with max 2 decimal places
-            if '.' in value_str and len(value_str.split('.')[-1]) > 2:
-                continue
-            value = float(value_str)
-            corrected_amounts.append(round(value, 2))  # zachováme haléře
-        except ValueError:
-            continue
+    return amounts
 
-    print(f"Final parsed float amounts (max 2 decimal places): {corrected_amounts}")
-    return corrected_amounts
 
+def parse_amount_string(raw):
+    original = raw  # pro debug
+    raw = raw.lower().strip()
+
+    # Sjednotíme různé typy pomlček
+    raw = raw.replace("−", "-").replace("–", "-").replace("—", "-")
+
+    # Seznam možných přípon
+    suffixes = [
+        "kč", "czk", "kc",
+        ",-", ".-", "-",  # běžná pomlčka
+        ",−", ".−", "−",  # matematické minus
+        ",–", ".–", "–",  # en dash
+        ",—", ".—", "—",  # em dash
+        "kč-", "czk-", "kc-",
+        "kč−", "czk−", "kc−",
+        "kč–", "czk–", "kc–",
+        "kč—", "czk—", "kc—",
+        "kč.", "czk.", "kc."
+    ]
+    for suffix in suffixes:
+        if raw.endswith(suffix):
+            raw = raw[: -len(suffix)].strip()
+
+    is_negative = raw.startswith("-")
+    if is_negative:
+        raw = raw[1:]
+
+    clean = raw.replace(" ", "")
+
+    if ',' in clean:
+        parts = clean.split(',')
+        if len(parts) == 2 and parts[1].isdigit():
+            if len(parts[1]) == 2:
+                value_str = clean.replace(',', '.')
+            elif len(parts[1]) == 3:
+                value_str = ''.join(parts)
+            else:
+                return None
+        else:
+            return None
+
+    elif '.' in clean:
+        parts = clean.split('.')
+        if len(parts) == 2 and parts[1].isdigit():
+            if len(parts[1]) == 3:
+                value_str = ''.join(parts)
+            elif len(parts[1]) == 2:
+                value_str = clean
+            else:
+                return None
+        elif all(p.isdigit() for p in parts):
+            value_str = ''.join(parts)
+        else:
+            return None
+
+    elif clean.isdigit():
+        value_str = clean
+    else:
+        return None
+
+    try:
+        value = round(float(value_str), 2)
+        return -value if is_negative else value
+    except ValueError:
+        return None
 
 def add_amounts_to_db(widget, amounts):
     """Uloží rozpoznané částky do databáze jako Příjem/Výdaj a aktualizuje graf."""
