@@ -1,6 +1,6 @@
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
-
+import logging
 
 def show_transaction_graph(cursor):
     """
@@ -13,12 +13,12 @@ def show_transaction_graph(cursor):
         A FigureCanvas containing the plotted graph, or None if no data is available.
     """
     try:
-        print("[INFO] Fetching data for transaction graph...")
+        logging.info("Fetching data for transaction graph...")
         cursor.execute("SELECT type, SUM(amount) FROM transactions GROUP BY type")
         data = cursor.fetchall()
 
         if not data:
-            print("[WARNING] No transactions found. Graph will not be displayed.")
+            logging.warning("No transactions found. Graph will not be displayed.")
             return None
 
         labels, values = zip(*data)
@@ -51,11 +51,9 @@ def show_transaction_graph(cursor):
 
         plt.subplots_adjust(left=0.15, right=0.95, top=0.85, bottom=0.2)
 
-        print("[INFO] Graph rendered successfully.")
+        logging.info("Graph rendered successfully.")
         return FigureCanvas(figure)
 
     except Exception as e:
-        print("[ERROR] Failed to render transaction graph.")
-        import traceback
-        traceback.print_exc()
+        logging.error("Failed to render transaction graph.")
         return None

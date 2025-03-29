@@ -7,8 +7,9 @@ from PIL import Image, ImageEnhance, ImageGrab, ImageOps
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMessageBox
-
 import easyocr
+import logging
+
 reader = easyocr.Reader(['cs', 'en'])
 
 def take_screenshot(widget):
@@ -20,7 +21,7 @@ def take_screenshot(widget):
         screenshot = None
 
         if sys.platform == "win32":
-            print("[INFO] Launching Windows Snipping Tool...")
+            logging.info("Launching Windows Snipping Tool...")
             subprocess.run(["explorer", "ms-screenclip:"], shell=True)
             time.sleep(5)
 
@@ -36,7 +37,7 @@ def take_screenshot(widget):
 
         elif sys.platform.startswith("linux"):
             screenshot_path = "/tmp/screenshot.png"
-            print("[INFO] Taking screenshot on Linux...")
+            logging.info("[INFO] Taking screenshot on Linux...")
 
             if subprocess.run("command -v maim", shell=True, stdout=subprocess.PIPE).returncode == 0:
                 subprocess.run(f"maim -s {screenshot_path}", shell=True)
@@ -89,9 +90,7 @@ def take_screenshot(widget):
             widget.label.setText("Operation cancelled.")
 
     except Exception as e:
-        print("[ERROR] Failed to process screenshot.")
-        import traceback
-        traceback.print_exc()
+        logging.error("Failed to process screenshot.")
         widget.label.setText(f"Screenshot failed: {str(e)}")
 
 def extract_amounts_from_image(image):
@@ -99,7 +98,7 @@ def extract_amounts_from_image(image):
     Preprocesses the image and uses OCR to detect numeric amounts.
     Returns a list of parsed float values.
     """
-    print("[INFO] Running OCR on image...")
+    logging.info("Running OCR on image...")
     image = image.convert("L")
     image = ImageEnhance.Contrast(image).enhance(3.0)
     image = ImageOps.autocontrast(image)
@@ -109,7 +108,7 @@ def extract_amounts_from_image(image):
     results = reader.readtext(image_np)
 
     for box, text, confidence in results:
-        print(f"[{confidence:.2f}] {text} @ {box}")
+        logging.debug(f"[{confidence:.2f}] {text} @ {box}")
 
     raw_texts = [text for (_, text, conf) in results if conf > 0.0]
     amounts = []
@@ -118,11 +117,11 @@ def extract_amounts_from_image(image):
         parsed = parse_amount_string(text)
         if parsed is not None:
             amounts.append(parsed)
-            print(f"[OK] Accepted: {text} → {parsed}")
+            logging.info(f" Accepted: {text} → {parsed}")
         else:
-            print(f"[SKIP] Rejected: {text}")
+            logging.debug(f"Rejected: {text}")
 
-    print(f"[INFO] Final parsed amounts: {amounts}")
+    logging.info(f"Final parsed amounts: {amounts}")
     return amounts
 
 def parse_amount_string(raw):
@@ -184,7 +183,7 @@ def add_amounts_to_db(widget, amounts):
     Inserts recognized amounts into the database and updates balance.
     """
     try:
-        print("[INFO] Inserting amounts into database...")
+        logging.info("Inserting amounts into database...")
         transaction_type = "Income" if widget.radio_income.isChecked() else "Expense"
 
 
@@ -206,7 +205,5 @@ def add_amounts_to_db(widget, amounts):
             widget.update_graph()
 
     except Exception as e:
-        print("[ERROR] Database update failed.")
-        import traceback
-        traceback.print_exc()
+        logging.error("Database update failed.")
         widget.label.setText(f"Database error: {str(e)}")

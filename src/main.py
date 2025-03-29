@@ -1,6 +1,12 @@
 import sys
 from PyQt5.QtWidgets import QApplication
 from gui_login import LoginApp
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
