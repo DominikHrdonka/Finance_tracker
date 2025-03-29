@@ -10,7 +10,7 @@ Aplikace v PyQt5, která zobrazuje příjmy a výdaje přihlášenému uživatel
 # Průběžné body tvorby aplikace:
 - [x] vytvořit login
 - [x] propojit login s main.py
-- [ ] přidat k logingu solení
+- [x] přidat k logingu solení
 - [x] rozdělit main.py na vícero souborů
 - [x] sepsat README.md
 - [x] sepsat requirements.txt
