@@ -1,16 +1,17 @@
 import sys
 from PyQt5.QtWidgets import QApplication
-from login import LoginApp
-from gui import FinanceTracker
+from gui_login import LoginApp
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     login_window = LoginApp()
     login_window.show()
-    app.exec_()  # Wait for login window to close
+    app.exec_()
 
     if login_window.is_authenticated:
-        main_window = FinanceTracker()
-        main_window.show()
+        # Import and launch main app here
+        from gui_tracker import FinanceTracker
+        tracker = FinanceTracker()
+        tracker.show()
         sys.exit(app.exec_())
