@@ -8,13 +8,14 @@ Aplikace v PyQt5, která zobrazuje příjmy a výdaje přihlášenému uživatel
 
 
 # Průběžné body tvorby aplikace:
-- [x] vytvořit login
-- [x] propojit login s main.py
-- [x] přidat k logingu solení
-- [x] přejít z user.json na sqlite loging
 - [x] rozdělit main.py na vícero souborů
 - [x] sepsat README.md
 - [x] sepsat requirements.txt
+- [x] vytvořit login
+- [x] propojit login s main.py
+- [x] přidat k loginu solení
+- [x] přejít z user.json na sqlite login
+- [x] přejít z sqlite na sqlalchemy login
 - [ ] udělat grafický návrh, jak má aplikace vypadat
 - [ ] nakódovat přidávání transakcí - json: leden, příjem/výdaj, částka, za co
 - [ ] přidat editování transakcí

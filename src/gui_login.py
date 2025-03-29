@@ -1,6 +1,5 @@
 from PyQt5.QtWidgets import QWidget, QLabel, QLineEdit, QPushButton, QGridLayout, QMessageBox
-from login_db import init_user_table, register_user, check_credentials
-
+from auth_sqlalchemy import register_user, check_credentials
 
 class LoginApp(QWidget):
     def __init__(self):

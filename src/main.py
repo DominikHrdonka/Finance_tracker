@@ -1,6 +1,6 @@
 import sys
 from PyQt5.QtWidgets import QApplication
-from login_db import init_user_table
+from db_models import Base, engine
 from gui_login import LoginApp
 import logging
 
@@ -10,7 +10,7 @@ logging.basicConfig(
 )
 
 if __name__ == "__main__":
-    init_user_table()
+    Base.metadata.create_all(engine)
 
     app = QApplication(sys.argv)
 
