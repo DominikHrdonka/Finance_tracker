@@ -4,13 +4,14 @@ Aplikace v PyQt5, která zobrazuje příjmy a výdaje přihlášenému uživatel
 # Spuštění aplikace:
 - pip install -r requirements.txt
 - python src/main.py
-- jméno/heslo: 1234/1234
+- vytvoření účtu a přihlášení
 
 
 # Průběžné body tvorby aplikace:
 - [x] vytvořit login
 - [x] propojit login s main.py
 - [x] přidat k logingu solení
+- [x] přejít z user.json na sqlite loging
 - [x] rozdělit main.py na vícero souborů
 - [x] sepsat README.md
 - [x] sepsat requirements.txt

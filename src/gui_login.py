@@ -1,7 +1,6 @@
 from PyQt5.QtWidgets import QWidget, QLabel, QLineEdit, QPushButton, QGridLayout, QMessageBox
-from login import load_users, save_users, hash_password, verify_password
+from login_db import init_user_table, register_user, check_credentials
 
-users = load_users()
 
 class LoginApp(QWidget):
     def __init__(self):
@@ -45,7 +44,7 @@ class LoginApp(QWidget):
         username = self.textbox_name.text()
         password = self.textbox_password.text()
 
-        if username in users and verify_password(password, users[username]):
+        if check_credentials(username, password):
             QMessageBox.information(self, "Success", "Login successful.")
             self.is_authenticated = True
             self.close()
@@ -57,11 +56,9 @@ class LoginApp(QWidget):
         username = self.textbox_name.text()
         password = self.textbox_password.text()
 
-        if username in users:
-            QMessageBox.warning(self, "Error", "User already exists.")
-        elif not username or not password:
+        if not username or not password:
             QMessageBox.warning(self, "Error", "Username and password must not be empty.")
-        else:
-            users[username] = hash_password(password)
-            save_users(users)
+        elif register_user(username, password):
             QMessageBox.information(self, "Success", f"User '{username}' has been registered successfully.")
+        else:
+            QMessageBox.warning(self, "Error", "User already exists.")
