@@ -2,14 +2,10 @@ import sys
 from PyQt5.QtWidgets import QApplication
 from db_models import Base, engine
 from gui_login import LoginApp
-import logging
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
+from utils import setup_logging
 
 if __name__ == "__main__":
+    setup_logging()
     Base.metadata.create_all(engine)
 
     app = QApplication(sys.argv)

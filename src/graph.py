@@ -1,21 +1,26 @@
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
 import logging
+from sqlalchemy import func
+from db_models import Transaction
 
-def show_transaction_graph(cursor):
+def show_transaction_graph(session):
     """
-    Renders a bar chart representing the sum of transactions by type.
+    Renders a bar chart representing the sum of transactions by type using SQLAlchemy.
 
     Args:
-        cursor: Database cursor used to fetch transaction data.
+        session: SQLAlchemy session used to fetch transaction data.
 
     Returns:
         A FigureCanvas containing the plotted graph, or None if no data is available.
     """
     try:
         logging.info("Fetching data for transaction graph...")
-        cursor.execute("SELECT type, SUM(amount) FROM transactions GROUP BY type")
-        data = cursor.fetchall()
+
+        # Fetch sum grouped by type (Income/Expense)
+        data = session.query(Transaction.type, func.sum(Transaction.amount)) \
+                     .group_by(Transaction.type) \
+                     .all()
 
         if not data:
             logging.warning("No transactions found. Graph will not be displayed.")
@@ -55,5 +60,5 @@ def show_transaction_graph(cursor):
         return FigureCanvas(figure)
 
     except Exception as e:
-        logging.error("Failed to render transaction graph.")
+        logging.error(f"Failed to render transaction graph: {e}")
         return None

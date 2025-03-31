@@ -1,35 +1,27 @@
-import sqlite3
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QRadioButton, QPushButton,
     QLineEdit, QLabel, QApplication
 )
 from PyQt5.QtCore import Qt
-
 from screenshot import take_screenshot, add_amounts_to_db
 from graph import show_transaction_graph
+from db_models import Session, Transaction
+from sqlalchemy import func
+
 
 class FinanceTracker(QWidget):
     def __init__(self):
         super().__init__()
         self.balance = 0
         self.graph_visible = True
-        self.init_db()
+        self.session = Session()
+        self.update_balance()
         self.init_ui()
         self.update_graph()
 
     def init_db(self):
-        self.conn = sqlite3.connect("finance_tracker.db", check_same_thread=False)
-        self.cursor = self.conn.cursor()
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                type TEXT,
-                amount INTEGER
-            )
-        """)
-        self.conn.commit()
-        self.cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM transactions")
-        self.balance = self.cursor.fetchone()[0]
+        from db_models import Base, engine
+        Base.metadata.create_all(engine)
 
     def init_ui(self):
         self.resize(900, 700)
@@ -73,7 +65,7 @@ class FinanceTracker(QWidget):
         layout.addWidget(self.graph_widget)
 
         # Balance label
-        self.label = QLabel(f"Current balance: {self.balance} CZK")
+        self.label = QLabel(f"Current balance: {self.balance:,.2f} CZK")
         layout.addWidget(self.label)
 
         # Screenshot preview
@@ -84,21 +76,30 @@ class FinanceTracker(QWidget):
         self.setLayout(layout)
         self.show()
 
+    def update_balance(self):
+        self.balance = self.session.query(func.coalesce(func.sum(Transaction.amount), 0)).scalar()
+
     def submit_manual_amount(self):
         try:
             amount = int(self.textbox.text())
         except ValueError:
-            self.label.setText(f"Error: Please enter a valid amount!\nCurrent balance: {self.balance} CZK")
+            self.label.setText(f"Error: Please enter a valid amount!\nCurrent balance: {self.balance:,.2f} CZK")
             return
+
+        original_amount = amount
 
         transaction_type = "Income" if self.radio_income.isChecked() else "Expense"
         if transaction_type == "Expense":
             amount = -abs(amount)
 
-        self.cursor.execute("INSERT INTO transactions (type, amount) VALUES (?, ?)", (transaction_type, amount))
-        self.conn.commit()
-        self.balance += amount
-        self.label.setText(f"Current balance: {self.balance} CZK")
+        new_transaction = Transaction(type=transaction_type, amount=amount)
+        self.session.add(new_transaction)
+        self.session.commit()
+
+        self.update_balance()
+        self.label.setText(
+            f"1 amount added: {abs(original_amount):,.2f} CZK | Current balance: {self.balance:,.2f} CZK"
+        )
         self.textbox.clear()
 
         if self.graph_visible:
@@ -120,7 +121,7 @@ class FinanceTracker(QWidget):
 
     def show_graph(self):
         self.clear_graph()
-        canvas = show_transaction_graph(self.cursor)
+        canvas = show_transaction_graph(self.session)
         if canvas:
             canvas.setMinimumWidth(800)
             canvas.setMinimumHeight(400)
@@ -130,7 +131,7 @@ class FinanceTracker(QWidget):
 
     def update_graph(self):
         self.clear_graph()
-        canvas = show_transaction_graph(self.cursor)
+        canvas = show_transaction_graph(self.session)
         if canvas:
             canvas.setMinimumWidth(800)
             canvas.setMinimumHeight(400)
@@ -154,8 +155,8 @@ class FinanceTracker(QWidget):
         self.graph_widget.setVisible(True)
 
     def clear_transactions(self):
-        self.cursor.execute("DELETE FROM transactions")
-        self.conn.commit()
+        self.session.query(Transaction).delete()
+        self.session.commit()
         self.balance = 0
         self.label.setText("Balance reset: 0 CZK (all transactions cleared)")
         if self.graph_visible:

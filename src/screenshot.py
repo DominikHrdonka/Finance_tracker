@@ -9,6 +9,9 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMessageBox
 import easyocr
 import logging
+from db_models import Session, Transaction
+from sqlalchemy import func
+
 
 reader = easyocr.Reader(['cs', 'en'])
 
@@ -85,7 +88,7 @@ def take_screenshot(widget):
 
         if reply == QMessageBox.Yes:
             add_amounts_to_db(widget, amounts)
-            widget.label.setText(f"{len(amounts)} amount(s) added.")
+            widget.label.setText(f"{len(amounts)} amount(s) added: {sum(amounts):,.2f} CZK | Current balance: {widget.balance:,.2f} CZK")
         else:
             widget.label.setText("Operation cancelled.")
 
@@ -186,18 +189,17 @@ def add_amounts_to_db(widget, amounts):
         logging.info("Inserting amounts into database...")
         transaction_type = "Income" if widget.radio_income.isChecked() else "Expense"
 
-
+        session = Session()
         for amount in amounts:
             if transaction_type == "Expense":
                 amount = -abs(amount)
-            widget.cursor.execute(
-                "INSERT INTO transactions (type, amount) VALUES (?, ?)",
-                (transaction_type, amount)
-            )
+            transaction = Transaction(type=transaction_type, amount=int(amount))
+            session.add(transaction)
 
-        widget.conn.commit()
-        widget.cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM transactions")
-        widget.balance = widget.cursor.fetchone()[0]
+        session.commit()
+
+        total = session.query(func.sum(Transaction.amount)).scalar() or 0
+        widget.balance = total
 
         widget.label.setText(f"Balance: {widget.balance} CZK ({transaction_type} added)")
 
@@ -207,3 +209,5 @@ def add_amounts_to_db(widget, amounts):
     except Exception as e:
         logging.error("Database update failed.")
         widget.label.setText(f"Database error: {str(e)}")
+    finally:
+        session.close()
