@@ -1,29 +1,33 @@
-# Finance_tracker:
-Aplikace v PyQt5, která zobrazuje příjmy a výdaje přihlášenému uživateli. Částky je schopna screenshotovat pomocí easyOCR.
+# README.md
 
-# Spuštění aplikace:
-- pip install -r requirements.txt
-- python src/main.py
-- vytvoření účtu a přihlášení (najetí chvíli trvat)
+## Finance_tracker:
+A PyQt5 application that displays income and expenses for the logged-in user. The app can extract amounts from screenshots using EasyOCR. And is configured for Czech number format — amounts like 1.234,56 CZK are correctly recognized and parsed.
 
+## How to Run:
+- `pip install -r requirements.txt`
+- `python src/main.py`
+- Create an account and log in (initial loading may take a moment)
 
-# Průběžné body tvorby aplikace:
-- [x] rozdělit main.py na vícero souborů
-- [x] sepsat README.md
-- [x] sepsat requirements.txt
-- [x] zprovoznit Tesseract OCR pro screenshotování částek
-- [x] přejít Tesseract OCR na easyOCR
-- [x] doladit a zprovoznit easyOCR
-- [x] vytvořit login
-- [x] propojit login s main.py
-- [x] přidat k loginu solení
-- [x] přejít z user.json na sqlite login
-- [x] přejít z sqlite na sqlalchemy login
-- [x] použí sqlalchemy i pro ostatní vstupy/výstupy database
-- [x] zkusit pull request pro schválení větve switching_to_easyOCR do main
-- [ ] validovat vstupy pro login
-- [ ] usměrnit přidávání mínusových částek příjem/výdaj
-- [ ] udělat grafický návrh, jak má aplikace vypadat
-- [ ] nakódovat přidávání transakcí - json: leden, příjem/výdaj, částka, za co
-- [ ] přidat editování transakcí
-- [ ] vytvořit (návrh) grafu příjmů a výdajů
+---
+
+## Development Progress Checklist:
+- [x] Split `main.py` into multiple files
+- [x] Write `README.md`
+- [x] Create `requirements.txt`
+- [x] Implement Tesseract OCR for capturing amounts
+- [x] Switch from Tesseract OCR to EasyOCR
+- [x] Configure and test EasyOCR functionality
+- [x] Implement login system
+- [x] Connect login with `main.py`
+- [x] Add password hashing (salting)
+- [x] Migrate login system from `users.json` to SQLite
+- [x] Migrate from SQLite to SQLAlchemy for login
+- [x] Use SQLAlchemy for all database input/output
+- [x] Attempt pull request to merge `switching_to_easyOCR` branch into `main`
+- [ ] Validate input fields in login form
+- [ ] Handle negative amounts consistently (income/expense)
+- Configured easyORC switch for global number formatting (e.g. `1,234.56 USD`)
+- [ ] Create UI/UX design for the final application layout
+- [ ] Implement transaction records (month, type, amount, description)
+- [ ] Add transaction editing functionality
+- [ ] Create a visual chart for income vs. expenses
