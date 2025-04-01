@@ -1,84 +1,120 @@
 import json
-from PyQt5.QtWidgets import QWidget, QLabel, QLineEdit, QPushButton, QGridLayout, QMessageBox
+import hashlib
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QLabel, QLineEdit,
+    QPushButton, QMessageBox
+)
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtGui import QFont
 
-# Soubor s uloženými uživateli
-USER_FILE = "users.json"
+USER_DATA_FILE = "users.json"
 
-# Funkce pro načtení uživatelů ze souboru
-def load_users():
-    try:
-        with open(USER_FILE, "r") as file:
-            return json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
+# ======== Správa uživatelů ======== #
+class UserManager:
+    @staticmethod
+    def load_users():
+        try:
+            with open(USER_DATA_FILE, 'r') as file:
+                return json.load(file)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
 
-# Funkce pro uložení uživatelů do souboru
-def save_users(users):
-    with open(USER_FILE, "w") as file:
-        json.dump(users, file, indent=4)
+    @staticmethod
+    def save_users(users):
+        with open(USER_DATA_FILE, 'w') as file:
+            json.dump(users, file, indent=4)
 
-# Uživatelé uložené v souboru
-users = load_users()
+    @staticmethod
+    def hash_password(password):
+        return hashlib.sha256(password.encode()).hexdigest()
 
+# ======== LoginApp ======== #
 class LoginApp(QWidget):
+    login_successful = pyqtSignal()
+
     def __init__(self):
         super().__init__()
-        self.is_authenticated = False  # ✅ Zda byl uživatel úspěšně přihlášen
-        self.init_ui()
+        self.is_authenticated = False  # ✅ Přidáno
+        self.initUI()
 
-    def init_ui(self):
-        """Inicializace UI přihlašovacího okna."""
-        self.setWindowTitle("Přihlášení")
+    def initUI(self):
+        self.setWindowTitle("Finance Tracker Login")
+        self.setFixedSize(400, 350)
 
-        layout = QGridLayout()
+        layout = QVBoxLayout()
 
-        # Jméno uživatele
-        self.label_name = QLabel("Jméno:")
-        self.textbox_name = QLineEdit()
-        layout.addWidget(self.label_name, 0, 0)
-        layout.addWidget(self.textbox_name, 0, 1)
+        self.label = QLabel("Přihlášení", self)
+        self.label.setFont(QFont('Segoe UI', 24))
+        layout.addWidget(self.label)
 
-        # Heslo
-        self.label_password = QLabel("Heslo:")
-        self.textbox_password = QLineEdit()
-        self.textbox_password.setEchoMode(QLineEdit.Password)
-        layout.addWidget(self.label_password, 1, 0)
-        layout.addWidget(self.textbox_password, 1, 1)
+        self.username_input = QLineEdit(self)
+        self.username_input.setPlaceholderText("Uživatelské jméno")
+        layout.addWidget(self.username_input)
 
-        # Přihlašovací tlačítko
-        self.btn_login = QPushButton("Přihlásit se")
-        self.btn_login.clicked.connect(self.check_login)
-        layout.addWidget(self.btn_login, 2, 0, 1, 2)
+        self.password_input = QLineEdit(self)
+        self.password_input.setEchoMode(QLineEdit.Password)
+        self.password_input.setPlaceholderText("Heslo")
+        layout.addWidget(self.password_input)
 
-        # Tlačítko pro registraci
-        self.btn_register = QPushButton("Registrace")
-        self.btn_register.clicked.connect(self.register_user)
-        layout.addWidget(self.btn_register, 3, 0, 1, 2)
+        self.login_button = QPushButton("Přihlásit se", self)
+        self.login_button.clicked.connect(self.on_login)
+        layout.addWidget(self.login_button)
+
+        self.register_button = QPushButton("Registrace", self)
+        self.register_button.clicked.connect(self.on_register)
+        layout.addWidget(self.register_button)
 
         self.setLayout(layout)
 
-    def check_login(self):
-        """Ověření přihlašovacích údajů."""
-        username = self.textbox_name.text()
-        password = self.textbox_password.text()
+        self.setStyleSheet('''
+            QWidget {
+                background-color: #f5f7fa;
+            }
+            QLabel {
+                color: #333;
+                text-align: center;
+            }
+            QLineEdit {
+                background-color: #fff;
+                border: 2px solid #007BFF;
+                border-radius: 10px;
+                padding: 10px;
+                font-size: 18px;
+            }
+            QPushButton {
+                background-color: #007BFF;
+                color: #fff;
+                border-radius: 10px;
+                padding: 12px;
+                font-size: 18px;
+            }
+            QPushButton:hover {
+                background-color: #0056b3;
+            }
+        ''')
 
-        if username in users and users[username] == password:
-            QMessageBox.information(self, "Úspěch", "Přihlášení úspěšné!")
-            self.is_authenticated = True  # ✅ Označíme přihlášení jako úspěšné
-            self.close()  # Zavřeme přihlašovací okno
+    def on_login(self):
+        username = self.username_input.text().strip()
+        password = self.password_input.text().strip()
+        users = UserManager.load_users()
+
+        if username in users and users[username] == UserManager.hash_password(password):
+            self.is_authenticated = True  # ✅ Přidáno
+            self.login_successful.emit()
+            self.close()
         else:
-            QMessageBox.warning(self, "Chyba", "Neplatné přihlašovací údaje.")
+            QMessageBox.warning(self, "Chyba", "❌ Nesprávné uživatelské jméno nebo heslo")
 
-    def register_user(self):
-        """Registrace nového uživatele."""
-        username = self.textbox_name.text()
-        password = self.textbox_password.text()
+    def on_register(self):
+        username = self.username_input.text().strip()
+        password = self.password_input.text().strip()
+        users = UserManager.load_users()
 
         if username in users:
-            QMessageBox.warning(self, "Chyba", "Uživatel již existuje.")
-        elif not username or not password:
-            QMessageBox.warning(self, "Chyba", "Jméno a heslo musí být vyplněny.")
+            QMessageBox.warning(self, "Chyba", "❗ Uživatelské jméno již existuje.")
+        elif len(username) < 3 or len(password) < 3:
+            QMessageBox.warning(self, "Chyba", "❗ Uživatelské jméno a heslo musí mít alespoň 3 znaky.")
         else:
-            users[username] = password
-            save_users(users)
-            QMessageBox.information(self, "Úspěch", f"Uživatel '{username}' byl úspěšně zaregistrován!")
+            users[username] = UserManager.hash_password(password)
+            UserManager.save_users(users)
+            QMessageBox.information(self, "Úspěch", "✅ Registrace proběhla úspěšně!")
