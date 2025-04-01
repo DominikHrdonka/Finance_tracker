@@ -26,7 +26,7 @@ A PyQt5 application that displays income and expenses for the logged-in user. Th
 - [x] Attempt pull request to merge `switching_to_easyOCR` branch into `main`
 - [ ] Validate input fields in login form
 - [ ] Handle negative amounts consistently (income/expense)
-- Configured easyORC switch for global number formatting (e.g. `1,234.56 USD`)
+- [ ] Configured easyORC switch for global number formatting (e.g. `1,234.56 USD`)
 - [ ] Create UI/UX design for the final application layout
 - [ ] Implement transaction records (month, type, amount, description)
 - [ ] Add transaction editing functionality
