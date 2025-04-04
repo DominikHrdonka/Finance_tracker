@@ -1,2 +1,3 @@
 .idea/
 .venv/
+src/finance_tracker.db

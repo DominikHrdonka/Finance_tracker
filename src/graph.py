@@ -1,40 +1,64 @@
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
+import logging
+from sqlalchemy import func
+from db_models import Transaction
 
-def showGraph(cursor):
-    """ Vykreslí graf transakcí. """
+def show_transaction_graph(session):
+    """
+    Renders a bar chart representing the sum of transactions by type using SQLAlchemy.
+
+    Args:
+        session: SQLAlchemy session used to fetch transaction data.
+
+    Returns:
+        A FigureCanvas containing the plotted graph, or None if no data is available.
+    """
     try:
-        print("📊 Načítám data pro graf...")
-        cursor.execute("SELECT type, SUM(amount) FROM transactions GROUP BY type")
-        data = cursor.fetchall()
+        logging.info("Fetching data for transaction graph...")
+
+        # Fetch sum grouped by type (Income/Expense)
+        data = session.query(Transaction.type, func.sum(Transaction.amount)) \
+                     .group_by(Transaction.type) \
+                     .all()
 
         if not data:
-            print("⚠️ Žádné transakce k zobrazení. Vracíme None.")
-            return None  # 💥 Ověříme, jestli problém je v datech
+            logging.warning("No transactions found. Graph will not be displayed.")
+            return None
 
-        labels, values = zip(*data) if data else ([], [])
+        labels, values = zip(*data)
 
+        # Prepare the figure
         plt.close("all")
-        figure, ax = plt.subplots(figsize=(8, 5))
+        figure, ax = plt.subplots(figsize=(8, 6))
 
-        colors = ['green' if lbl == "Příjem" else 'red' for lbl in labels]
-        ax.bar(labels, values, color=colors, width=0.6)
+        # Assign colors based on transaction type
+        colors = ['green' if label.lower() == "income" else 'red' for label in labels]
+        bars = ax.bar(labels, values, color=colors, width=0.6)
 
-        ax.set_title("Příjmy vs Výdaje", fontsize=16, fontweight="bold")
-        ax.set_xlabel("Kategorie", fontsize=14)
-        ax.set_ylabel("Částka (Kč)", fontsize=14)
+        ax.set_title("Income vs Expenses", fontsize=16, fontweight="bold")
+        ax.set_xlabel("Category", fontsize=14)
+        ax.set_ylabel("Amount (CZK)", fontsize=14)
 
-        for i, v in enumerate(values):
-            ax.text(i, v + (5000 if v > 0 else -5000), f"{v} Kč", ha='center', fontsize=12, fontweight="bold")
+        # Add value labels above/below bars
+        for bar, value in zip(bars, values):
+            height = bar.get_height()
+            offset = max(abs(height) * 0.02, 20)  # Dynamic offset, min 20px
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                height + (offset if height > 0 else -offset),
+                f"{round(value)} CZK",
+                ha='center',
+                va='bottom' if height > 0 else 'top',
+                fontsize=12,
+                fontweight="bold"
+            )
 
         plt.subplots_adjust(left=0.15, right=0.95, top=0.85, bottom=0.2)
 
-        canvas = FigureCanvas(figure)
-        print("✅ Graf úspěšně vytvořen a vrácen jako FigureCanvas!")
-        return canvas  # ✅ Tohle musí být vráceno do `canvas = showGraph(self.cursor)`
+        logging.info("Graph rendered successfully.")
+        return FigureCanvas(figure)
 
     except Exception as e:
-        print("❌ Chyba při vykreslování grafu!")
-        import traceback
-        traceback.print_exc()
+        logging.error(f"Failed to render transaction graph: {e}")
         return None

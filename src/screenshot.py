@@ -1,46 +1,46 @@
 import subprocess
 import time
-import pytesseract
 import sys
-from PIL import Image, ImageEnhance, ImageGrab
+import io
+import numpy as np
+from PIL import Image, ImageEnhance, ImageGrab, ImageOps
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import Qt
-import io
-import os
-import re
+from PyQt5.QtWidgets import QMessageBox
+import easyocr
+import logging
+from db_models import Session, Transaction
+from sqlalchemy import func
 
-# ✅ Nastavení cesty k Tesseract OCR podle OS
-if sys.platform == "win32":
-    pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-elif sys.platform.startswith("linux"):
-    pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"  # Standardní cesta pro Linux
 
-print(f"🟢 Tesseract OCR používá: {pytesseract.pytesseract.tesseract_cmd}")
-
+reader = easyocr.Reader(['cs', 'en'])
 
 def take_screenshot(widget):
-    """Pořídí screenshot podle OS a extrahuje částky."""
+    """
+    Captures a screenshot and extracts monetary values using OCR.
+    Updates the GUI with results and optionally inserts data into the database.
+    """
     try:
         screenshot = None
 
         if sys.platform == "win32":
-            print("🟢 Spouštíme Windows Snipping Tool...")
+            logging.info("Launching Windows Snipping Tool...")
             subprocess.run(["explorer", "ms-screenclip:"], shell=True)
             time.sleep(5)
 
-            for attempt in range(10):
+            for _ in range(10):
                 screenshot = ImageGrab.grabclipboard()
                 if screenshot:
                     break
                 time.sleep(0.5)
 
             if screenshot is None:
-                widget.label.setText("❌ Screenshot nebyl nalezen.")
+                widget.label.setText("Screenshot not found.")
                 return
 
         elif sys.platform.startswith("linux"):
             screenshot_path = "/tmp/screenshot.png"
-            print("📸 Pořizujeme screenshot v Linuxu...")
+            logging.info("[INFO] Taking screenshot on Linux...")
 
             if subprocess.run("command -v maim", shell=True, stdout=subprocess.PIPE).returncode == 0:
                 subprocess.run(f"maim -s {screenshot_path}", shell=True)
@@ -49,17 +49,16 @@ def take_screenshot(widget):
             elif subprocess.run("command -v import", shell=True, stdout=subprocess.PIPE).returncode == 0:
                 subprocess.run(f"import {screenshot_path}", shell=True)
             else:
-                widget.label.setText("❌ Žádný nástroj na screenshot není dostupný!")
+                widget.label.setText("No screenshot tool available.")
                 return
 
             time.sleep(1)
             screenshot = Image.open(screenshot_path)
 
         else:
-            widget.label.setText("❌ Nepodporovaný OS.")
+            widget.label.setText("Unsupported operating system.")
             return
 
-        # 🖼️ Převedeme screenshot na QPixmap
         buffer = io.BytesIO()
         screenshot.save(buffer, format="PNG")
         buffer.seek(0)
@@ -68,79 +67,147 @@ def take_screenshot(widget):
         qimage.loadFromData(buffer.getvalue(), "PNG")
         pixmap = QPixmap.fromImage(qimage)
 
-        widget.screenshot_label.setPixmap(pixmap)
         widget.screenshot_label.setPixmap(pixmap.scaled(
             widget.screenshot_label.size(),
             Qt.KeepAspectRatio,
             Qt.SmoothTransformation
         ))
-        widget.label.setText("✅ Screenshot byl pořízen!")
+        widget.label.setText("Screenshot captured.")
 
-        # 📜 Spustíme OCR a extrahujeme částky
         amounts = extract_amounts_from_image(screenshot)
 
         if not amounts:
-            widget.label.setText("❌ Nebyly rozpoznány žádné částky.")
+            widget.label.setText("No amounts recognized.")
             return
 
-        add_amounts_to_db(widget, amounts)
+        amounts_str = ", ".join(f"{a:.2f} CZK" for a in amounts)
+        confirm_text = f"The following amounts were recognized:\n{amounts_str}\n\nDo you want to add them to the database?"
+
+        reply = QMessageBox.question(widget, "Confirm OCR Results", confirm_text,
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            add_amounts_to_db(widget, amounts)
+            widget.label.setText(f"{len(amounts)} amount(s) added: {sum(amounts):,.2f} CZK | Current balance: {widget.balance:,.2f} CZK")
+        else:
+            widget.label.setText("Operation cancelled.")
 
     except Exception as e:
-        print("❌ Chyba během screenshotování!")
-        import traceback
-        traceback.print_exc()
-        widget.label.setText(f"❌ Screenshot selhal: {str(e)}")
-
+        logging.error("Failed to process screenshot.")
+        widget.label.setText(f"Screenshot failed: {str(e)}")
 
 def extract_amounts_from_image(image):
-    """ Použije OCR k extrakci částek ze screenshotu. """
-    print("🔍 Spouštíme OCR na rozpoznání textu...")
-
-    # Zvýšíme kontrast obrázku pro lepší OCR
+    """
+    Preprocesses the image and uses OCR to detect numeric amounts.
+    Returns a list of parsed float values.
+    """
+    logging.info("Running OCR on image...")
     image = image.convert("L")
-    enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(2.0)
+    image = ImageEnhance.Contrast(image).enhance(3.0)
+    image = ImageOps.autocontrast(image)
+    image = image.resize((image.width * 2, image.height * 2), Image.LANCZOS)
 
-    # Rozpoznání textu (čeština + angličtina)
-    text = pytesseract.image_to_string(image, lang="ces+eng")
-    print(f"📜 Rozpoznaný text:\n{text}")
+    image_np = np.array(image)
+    results = reader.readtext(image_np)
 
-    # Extrakce čísel (včetně oddělovačů tisíců)
-    amounts = re.findall(r"\d{1,3}(?:[\.,]\d{3})*|\d+", text)
+    for box, text, confidence in results:
+        logging.debug(f"[{confidence:.2f}] {text} @ {box}")
 
-    corrected_amounts = []
-    for amount in amounts:
-        clean_amount = amount.replace(".", "").replace(",", "")
-        if clean_amount.isdigit():
-            corrected_amounts.append(int(clean_amount))
+    raw_texts = [text for (_, text, conf) in results if conf > 0.0]
+    amounts = []
 
-    print(f"💰 Opravené částky: {corrected_amounts}")
-    return corrected_amounts
+    for text in raw_texts:
+        parsed = parse_amount_string(text)
+        if parsed is not None:
+            amounts.append(parsed)
+            logging.info(f" Accepted: {text} → {parsed}")
+        else:
+            logging.debug(f"Rejected: {text}")
 
+    logging.info(f"Final parsed amounts: {amounts}")
+    return amounts
+
+def parse_amount_string(raw):
+    """
+    Parses a string representing a monetary value and returns it as a float.
+    Handles common Czech suffixes and formatting styles.
+    """
+    raw = raw.lower().strip()
+    raw = raw.replace("−", "-").replace("–", "-").replace("—", "-")
+
+    suffixes = [
+        "kč", "czk", "kc",
+        ",-", ".-", "-", ",−", ".−", "−", ",–", ".–", "–", ",—", ".—", "—",
+        "kč-", "czk-", "kc-", "kč−", "czk−", "kc−",
+        "kč–", "czk–", "kc–", "kč—", "czk—", "kc—",
+        "kč.", "czk.", "kc."
+    ]
+    for suffix in suffixes:
+        if raw.endswith(suffix):
+            raw = raw[:-len(suffix)].strip()
+
+    is_negative = raw.startswith("-")
+    if is_negative:
+        raw = raw[1:]
+
+    clean = raw.replace(" ", "")
+
+    value_str = None
+    if "," in clean:
+        parts = clean.split(",")
+        if len(parts) == 2 and parts[1].isdigit():
+            if len(parts[1]) == 2:
+                value_str = clean.replace(",", ".")
+            elif len(parts[1]) == 3:
+                value_str = "".join(parts)
+    elif "." in clean:
+        parts = clean.split(".")
+        if len(parts) == 2 and parts[1].isdigit():
+            if len(parts[1]) == 2:
+                value_str = clean
+            elif len(parts[1]) == 3:
+                value_str = "".join(parts)
+        elif all(p.isdigit() for p in parts):
+            value_str = "".join(parts)
+    elif clean.isdigit():
+        value_str = clean
+
+    if value_str is None:
+        return None
+
+    try:
+        value = round(float(value_str), 2)
+        return -value if is_negative else value
+    except ValueError:
+        return None
 
 def add_amounts_to_db(widget, amounts):
-    """Uloží rozpoznané částky do databáze jako Příjem/Výdaj a aktualizuje graf."""
+    """
+    Inserts recognized amounts into the database and updates balance.
+    """
     try:
-        print("📊 Přidáváme částky do databáze...")
-        transaction_type = "Příjem" if widget.radio1.isChecked() else "Výdaj"
+        logging.info("Inserting amounts into database...")
+        transaction_type = "Income" if widget.radio_income.isChecked() else "Expense"
 
+        session = Session()
         for amount in amounts:
-            if transaction_type == "Výdaj":
+            if transaction_type == "Expense":
                 amount = -abs(amount)
+            transaction = Transaction(type=transaction_type, amount=int(amount))
+            session.add(transaction)
 
-            widget.cursor.execute("INSERT INTO transactions (type, amount) VALUES (?, ?)", (transaction_type, amount))
+        session.commit()
 
-        widget.conn.commit()
-        widget.cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM transactions")
-        widget.balance = widget.cursor.fetchone()[0]
+        total = session.query(func.sum(Transaction.amount)).scalar() or 0
+        widget.balance = total
 
-        widget.label.setText(f"💰 Zůstatek: {widget.balance} Kč (přidáno {transaction_type})")
+        widget.label.setText(f"Balance: {widget.balance} CZK ({transaction_type} added)")
 
         if widget.graph_visible:
             widget.update_graph()
 
     except Exception as e:
-        print("❌ Chyba při přidávání do databáze!")
-        import traceback
-        traceback.print_exc()
-        widget.label.setText(f"❌ Chyba v DB: {str(e)}")
+        logging.error("Database update failed.")
+        widget.label.setText(f"Database error: {str(e)}")
+    finally:
+        session.close()
